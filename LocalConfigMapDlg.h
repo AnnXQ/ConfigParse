@@ -44,17 +44,20 @@ public:
     afx_msg void OnMenuitemContact();
     afx_msg void OnNMClickList(NMHDR *pNMHDR, LRESULT *pResult);
     afx_msg void OnNMDblclkList(NMHDR *pNMHDR, LRESULT *pResult);
-
+    afx_msg void OnMenuitemGetDetail();
+    
     //清空表格
     void _Clear();
+    //读取文件信息，填充表格
+    void _FillCtrlList();
     //打开文件资源管理器，并设置文件路径
-    BOOL GetXmlFilePath();
+    BOOL _GetXmlFilePath();
+    //修改nRow指定行的开关状态
+    void _SetRowSwitchState(UINT nRow, int dwState);
 
 private:
     int m_Row;
     int m_Col;
     CConfigSyncRegistry m_ConfigSyncReg;
     CConfigParse m_CfgItemConfig;
-public:
-    afx_msg void OnGetfiledetail();
 };

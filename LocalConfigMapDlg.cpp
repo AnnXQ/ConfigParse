@@ -70,15 +70,15 @@ BEGIN_MESSAGE_MAP(CLocalConfigMapDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
-    ON_NOTIFY(NM_DBLCLK, IDC_LIST, &CLocalConfigMapDlg::OnNMDblclkList)
     ON_COMMAND(ID_MENUITEM_IMPORT, &CLocalConfigMapDlg::OnMenuitemImport)
     ON_COMMAND(ID_MENUITEM_EXIT, &CLocalConfigMapDlg::OnMenuitemExit)
     ON_COMMAND(ID_MENUITEM_CLOASEALL, &CLocalConfigMapDlg::OnMenuitemCloaseall)
     ON_COMMAND(ID_MENUITEM_OPENALL, &CLocalConfigMapDlg::OnMenuitemOpenall)
     ON_COMMAND(ID_MENUITEM_HELP, &CLocalConfigMapDlg::OnMenuitemHelp)
     ON_COMMAND(ID_MENUITEM_CONTACT, &CLocalConfigMapDlg::OnMenuitemContact)
+    ON_COMMAND(ID_MENUITEM_GETDETAIL, &CLocalConfigMapDlg::OnMenuitemGetDetail)
     ON_NOTIFY(NM_CLICK, IDC_LIST, &CLocalConfigMapDlg::OnNMClickList)
-    ON_COMMAND(ID_GETFILEDETAIL, &CLocalConfigMapDlg::OnGetfiledetail)
+    ON_NOTIFY(NM_DBLCLK, IDC_LIST, &CLocalConfigMapDlg::OnNMDblclkList)
 END_MESSAGE_MAP()
 
 
@@ -123,11 +123,14 @@ BOOL CLocalConfigMapDlg::OnInitDialog()
     m_ListCtrl.InsertColumn(0, _T("开关"), LVCFMT_LEFT, 40);
     m_ListCtrl.InsertColumn(1, _T(CFGITEM_CONFIG_CFGITEM_ATTR_NAME), LVCFMT_LEFT, 150);
     m_ListCtrl.InsertColumn(2, _T(CFGITEM_CONFIG_CFGITEM_DOWN_ATTR_PATH), LVCFMT_LEFT, 300);
+    //还可以继续添加列，空留了md5的部分
 
-    //读取开关图片
+
+    //读取开关图片，并将其与表格进行绑定
     VERIFY(m_checkImgList.Create(IDB_BITMAP_SWITCH, 31, 2, RGB(255, 0, 255)));
     m_ListCtrl.SetImageList(&m_checkImgList, LVSIL_SMALL);
 
+    _FillCtrlList();
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -186,34 +189,25 @@ void CLocalConfigMapDlg::OnMenuitemImport()
     _Clear();
 
     //获取文件路径
-    if (!GetXmlFilePath())
+    if (!_GetXmlFilePath())
         return;
 
-    //读取文件
-    if (!m_CfgItemConfig.Load())
-    {
-        MessageBox(_T("读取文件失败"));
-        return;
-    }
-
-    std::vector<CFGITEM>&veccfgtemp = m_CfgItemConfig.GetVecCfgItem();
-    m_ConfigSyncReg.InitVecSwitchState(veccfgtemp);
-
-    for (UINT nRow = 0; nRow < veccfgtemp.size(); nRow++)
-    {
-        LV_ITEM lvitem;
-        memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-        lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
-        lvitem.iItem = nRow;
-        lvitem.iSubItem = 0;
-        lvitem.stateMask = 0;
-        lvitem.iImage = veccfgtemp[nRow].SwitchState;
-        m_ListCtrl.InsertItem(&lvitem);
-        m_ListCtrl.SetItemText(nRow, 1, veccfgtemp[nRow].name);
-        m_ListCtrl.SetItemText(nRow, 2, veccfgtemp[nRow].Download.path);
-    }
+    //填充表格
+    _FillCtrlList();
 }
 
+void CLocalConfigMapDlg::OnMenuitemGetDetail()
+{
+    if (m_ListCtrl.GetItemCount() <= 0)
+    {
+        MessageBox(_T("请先导入xml文件"));
+        return;
+    }
+
+    ATL::CAtlString str;
+    str.Format(_T("版本号：%d\r\n配置总数：%d"), m_CfgItemConfig.GetVersion(), m_ListCtrl.GetItemCount());
+    MessageBox(str);
+}
 
 void CLocalConfigMapDlg::OnMenuitemExit()
 {
@@ -238,15 +232,7 @@ void CLocalConfigMapDlg::OnMenuitemCloaseall()
         {
             if (m_ConfigSyncReg.SetSwitchState(veccfgtemp[nRow], 0, TRUE))
             {
-                LV_ITEM lvitem;
-                memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-                lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
-                lvitem.iItem = nRow;
-                lvitem.iSubItem = 0;
-                lvitem.stateMask = 0;
-                m_ListCtrl.GetItem(&lvitem);
-                lvitem.iImage = 0;
-                m_ListCtrl.SetItem(&lvitem);
+                _SetRowSwitchState(nRow, 0);
             }
         }
     }
@@ -270,15 +256,7 @@ void CLocalConfigMapDlg::OnMenuitemOpenall()
         {
             if (m_ConfigSyncReg.SetSwitchState(veccfgtemp[nRow], 1, TRUE))
             {
-                LV_ITEM lvitem;
-                memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-                lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
-                lvitem.iItem = nRow;
-                lvitem.iSubItem = 0;
-                lvitem.stateMask = 0;
-                m_ListCtrl.GetItem(&lvitem);
-                lvitem.iImage = 1;
-                m_ListCtrl.SetItem(&lvitem);
+                _SetRowSwitchState(nRow, 1);
             }
         }
     }
@@ -312,18 +290,9 @@ void CLocalConfigMapDlg::OnNMClickList(NMHDR *pNMHDR, LRESULT *pResult)
         if (nFlag == LVHT_ONITEMICON)
         {
             std::vector<CFGITEM>&veccfgtemp = m_CfgItemConfig.GetVecCfgItem();
-            BOOL nowState = (veccfgtemp[nItem].SwitchState == 0) ? FALSE : TRUE;
-            m_ConfigSyncReg.SetSwitchState(veccfgtemp[nItem], !nowState, TRUE);
-            //改变图标
-            LV_ITEM lvitem;
-            memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-            lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
-            lvitem.iItem = nItem;
-            lvitem.iSubItem = 0;
-            lvitem.stateMask = 0;
-            m_ListCtrl.GetItem(&lvitem);
-            lvitem.iImage = !nowState;
-            m_ListCtrl.SetItem(&lvitem);
+            BOOL setState = (veccfgtemp[nItem].SwitchState == 0) ? TRUE : FALSE;
+            m_ConfigSyncReg.SetSwitchState(veccfgtemp[nItem], setState, TRUE);
+            _SetRowSwitchState(nItem, setState);
         }
     } while (FALSE);
 
@@ -365,26 +334,55 @@ void CLocalConfigMapDlg::_Clear()
             MessageBox(_T("清空表格失败"));
     }
 
+    //需要去清空表格填充内容的m_CfgItemConfig
     m_CfgItemConfig._Clear();
 }
 
-BOOL CLocalConfigMapDlg::GetXmlFilePath()
+void CLocalConfigMapDlg::_FillCtrlList()
 {
-#define CFGITEM_CONFIG_FILE_PATH_NAME           _T("LocalConfigMap.xml")
+    //读取文件
+    if (!m_CfgItemConfig.Load())
+    {
+        return;
+    }
 
+    std::vector<CFGITEM>&veccfgtemp = m_CfgItemConfig.GetVecCfgItem();
+    m_ConfigSyncReg.InitVecSwitchState(veccfgtemp);
+
+    for (UINT nRow = 0; nRow < veccfgtemp.size(); nRow++)
+    {
+        LV_ITEM lvitem;
+        memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
+        lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
+        lvitem.iItem = nRow;
+        lvitem.iSubItem = 0;
+        lvitem.stateMask = 0;
+        lvitem.iImage = veccfgtemp[nRow].SwitchState;
+        m_ListCtrl.InsertItem(&lvitem);
+        m_ListCtrl.SetItemText(nRow, 1, veccfgtemp[nRow].name);
+        m_ListCtrl.SetItemText(nRow, 2, veccfgtemp[nRow].Download.path);
+    }
+}
+
+void CLocalConfigMapDlg::_SetRowSwitchState(UINT nRow, int dwState)
+{
+    LV_ITEM lvitem;
+    memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
+    lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
+    lvitem.iItem = nRow;
+    lvitem.iSubItem = 0;
+    lvitem.stateMask = 0;
+    m_ListCtrl.GetItem(&lvitem);
+    lvitem.iImage = dwState;
+    m_ListCtrl.SetItem(&lvitem);
+}
+
+BOOL CLocalConfigMapDlg::_GetXmlFilePath()
+{
     BOOL bRet = FALSE;
     do
     {
-        //如果同级目录下存在指定的xml文件，直接导入
-        ATL::CAtlString strFilePath = CFGITEM_CONFIG_FILE_PATH_NAME;
-        if (ATLPath::FileExists(strFilePath))
-        {
-            bRet = TRUE;
-            m_CfgItemConfig.m_strFilePath = CFGITEM_CONFIG_FILE_PATH_NAME;
-            break;
-        }
-
-        //如果不存在，就打开资源管理器让用户进行选择
+        //打开资源管理器让用户进行选择
         CFileDialog dlg(TRUE, _T("xml"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("LocalConfig(*.xml)|*.xml||"));
         INT_PTR nResponse = dlg.DoModal();
         if (nResponse == IDOK)
@@ -396,18 +394,4 @@ BOOL CLocalConfigMapDlg::GetXmlFilePath()
     } while (FALSE);
 
     return bRet;
-}
-
-
-void CLocalConfigMapDlg::OnGetfiledetail()
-{
-    if (m_ListCtrl.GetItemCount() <= 0)
-    {
-        MessageBox(_T("请先导入xml文件"));
-        return;
-    }
-
-    ATL::CAtlString str;
-    str.Format(_T("版本号：%d\r\n配置总数：%d"), m_CfgItemConfig.GetVersion(), m_ListCtrl.GetItemCount());
-    MessageBox(str);
 }

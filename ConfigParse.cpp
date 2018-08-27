@@ -7,6 +7,7 @@
 
 CConfigParse::CConfigParse()
     :m_dwVersion(0)
+    , m_strFilePath(CFGITEM_CONFIG_FILE_PATH_NAME)
 {
 }
 
@@ -17,8 +18,6 @@ CConfigParse::~CConfigParse()
 
 BOOL CConfigParse::Load()
 {
-//#define CFGITEM_CONFIG_FILE_PATH_NAME           _T("LocalConfigMap.xml")
-    
     BOOL bRet = FALSE;
 
     do
@@ -122,6 +121,8 @@ void CConfigParse::_Clear()
 {
     m_vecCfgItem.clear();
     m_mapPolicyID.clear();
+    m_strFilePath = CFGITEM_CONFIG_FILE_PATH_NAME;
+    m_dwVersion = 0;
 }
 
 BOOL CConfigParse::CreatPolicyIDMap()

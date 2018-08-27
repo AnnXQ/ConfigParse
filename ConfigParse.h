@@ -7,6 +7,8 @@
 
 class CConfigParse
 {
+#define CFGITEM_CONFIG_FILE_PATH_NAME           _T("LocalConfigMap.xml")
+
 public:
     CConfigParse();
     ~CConfigParse();
