@@ -7,6 +7,7 @@
 #include "LocalConfigMapDlg.h"
 #include "afxdialogex.h"
 #include "ConfigDetailDlg.h"
+#include <atlpath.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -181,11 +182,14 @@ HCURSOR CLocalConfigMapDlg::OnQueryDragIcon()
 
 void CLocalConfigMapDlg::OnMenuitemImport()
 {
+    //清空表格
     _Clear();
 
+    //获取文件路径
     if (!GetXmlFilePath())
         return;
 
+    //读取文件
     if (!m_CfgItemConfig.Load())
     {
         MessageBox(_T("读取文件失败"));
@@ -199,7 +203,7 @@ void CLocalConfigMapDlg::OnMenuitemImport()
     {
         LV_ITEM lvitem;
         memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-        lvitem.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_STATE;
+        lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
         lvitem.iItem = nRow;
         lvitem.iSubItem = 0;
         lvitem.stateMask = 0;
@@ -236,7 +240,7 @@ void CLocalConfigMapDlg::OnMenuitemCloaseall()
             {
                 LV_ITEM lvitem;
                 memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-                lvitem.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_STATE;
+                lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
                 lvitem.iItem = nRow;
                 lvitem.iSubItem = 0;
                 lvitem.stateMask = 0;
@@ -268,7 +272,7 @@ void CLocalConfigMapDlg::OnMenuitemOpenall()
             {
                 LV_ITEM lvitem;
                 memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-                lvitem.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_STATE;
+                lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
                 lvitem.iItem = nRow;
                 lvitem.iSubItem = 0;
                 lvitem.stateMask = 0;
@@ -313,7 +317,7 @@ void CLocalConfigMapDlg::OnNMClickList(NMHDR *pNMHDR, LRESULT *pResult)
             //改变图标
             LV_ITEM lvitem;
             memset((char *)&lvitem, '\0', sizeof(LV_ITEM));
-            lvitem.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_STATE;
+            lvitem.mask = LVIF_TEXT | LVIF_IMAGE;
             lvitem.iItem = nItem;
             lvitem.iSubItem = 0;
             lvitem.stateMask = 0;
@@ -366,9 +370,21 @@ void CLocalConfigMapDlg::_Clear()
 
 BOOL CLocalConfigMapDlg::GetXmlFilePath()
 {
+#define CFGITEM_CONFIG_FILE_PATH_NAME           _T("LocalConfigMap.xml")
+
     BOOL bRet = FALSE;
     do
     {
+        //如果同级目录下存在指定的xml文件，直接导入
+        ATL::CAtlString strFilePath = CFGITEM_CONFIG_FILE_PATH_NAME;
+        if (ATLPath::FileExists(strFilePath))
+        {
+            bRet = TRUE;
+            m_CfgItemConfig.m_strFilePath = CFGITEM_CONFIG_FILE_PATH_NAME;
+            break;
+        }
+
+        //如果不存在，就打开资源管理器让用户进行选择
         CFileDialog dlg(TRUE, _T("xml"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("LocalConfig(*.xml)|*.xml||"));
         INT_PTR nResponse = dlg.DoModal();
         if (nResponse == IDOK)
@@ -376,6 +392,7 @@ BOOL CLocalConfigMapDlg::GetXmlFilePath()
             m_CfgItemConfig.m_strFilePath = dlg.GetPathName();
             bRet = TRUE;
         }
+
     } while (FALSE);
 
     return bRet;
